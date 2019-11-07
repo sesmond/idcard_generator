@@ -23,10 +23,6 @@
 - opencv
 
 ## 下载
-### Windows
-[下载](https://github.com/airob0t/idcardgenerator/releases/download/win_v1.3/idcardgenerator.exe)
-### Mac
-[下载](https://github.com/airob0t/idcardgenerator/releases/download/v1.1/idcardgenerator)
 
 ## 打包程序
 
