@@ -5,8 +5,10 @@ from PIL import ImageFont, ImageDraw
 import cv2
 import numpy as np
 import util.config_util as util
+from util import  config
 import sys
 from entity.idcard import IdCard
+
 
 """
 
@@ -92,7 +94,7 @@ def generator(idCard, image_name):
     # TODO 头像 随机选
 
     # avatar = PImage.open(fname)  # 500x670
-    avatar = cv2.imread("./resource/icon/2.jpeg")
+    avatar = PImage.open("./resource/icon/2.jpeg")
     name_font = ImageFont.truetype(os.path.join(base_dir, 'font/hei.ttf'), 72)
     other_font = ImageFont.truetype(os.path.join(base_dir, 'font/hei.ttf'), 60)
     bdate_font = ImageFont.truetype(os.path.join(base_dir, 'font/fzhei.ttf'), 60)
@@ -123,25 +125,26 @@ def generator(idCard, image_name):
     im = changeBackground(avatar, im, (500, 670), (690, 1500))
     im = PImage.fromarray(cv2.cvtColor(im, cv2.COLOR_BGRA2RGBA))
 
-    # im = cv2.resize(im,(size[1]/2,size[0]/2))
+    # avatar = avatar.resize((500, 670))
+    # avatar = avatar.convert('RGBA')
+    # # im.paste(avatar, (1500, 690), mask=avatar)
+    # im = paste(avatar, im, (500, 670), (690, 1500))
+    # # im = cv2.resize(im,(size[1]/2,size[0]/2))
 
     # (left, upper, right, lower) x1,y1,x2,y2
-    front = im.crop([161, 352, 2369, 1775])
-    back = im.crop([161, 1775, 2369, 3221])
+    front = im.crop([275, 480, 2180, 1680])
+    back = im.crop([275, 1897, 2180, 3104])
 
     front_size = front.size
-    front = front.resize((front_size[0]//4,front_size[1]//4))
+    front = front.resize((front_size[0]//config.SCALE_RATE,front_size[1]//config.SCALE_RATE))
 
     front.save('data/color_' + image_name + '_front.png')
 
     back_size = back.size
-    back = back.resize((back_size[0] // 4, back_size[1] // 4))
+    back = back.resize((back_size[0] // config.SCALE_RATE, back_size[1] // config.SCALE_RATE))
 
     back.save('data/color_' + image_name + '_back.png')
-    #
-    # im.save('data/color_' + image_name + '.png')
-    #
-    #
+
     # im.convert('L').save('data/bw_'+image_name+'.png')
     print('成功', u'文件已生成到目录下', image_name)
     # showinfo(u'成功', u'文件已生成到目录下,黑白bw.png和彩色color.png')
@@ -152,8 +155,8 @@ if __name__ == '__main__':
     util.initArea()
 
     # TODO 待封装
-    for i in range(2):
+    for i in range(100,101):
         card = util.generateIdCard()
         card.print()
-        img_name = 'id_' + str(i).zfill(4)
+        img_name = 'id_' + str(i).zfill(5)
         generator(card, img_name)
