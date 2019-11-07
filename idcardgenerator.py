@@ -123,7 +123,6 @@ def generator(idCard, image_name):
     draw.text((1050, 2750), idCard.org, fill=(0, 0, 0), font=other_font)
     draw.text((1050, 2895), idCard.validPeriod, fill=(0, 0, 0), font=other_font)
 
-    #
     avatar = cv2.cvtColor(np.asarray(avatar), cv2.COLOR_RGBA2BGRA)
     plt.imshow(avatar)
     plt.show()
@@ -141,13 +140,7 @@ def generator(idCard, image_name):
     plt.imshow(im)
     plt.show()
 
-
-    # avatar = cv2.resize(avatar,(500,670))
-    # # avatar.resize((500, 670))
-    # avatar = cv2.cvtColor(avatar,cv2.COLOR_RGB2BGRA)
-    # # avatar.convert('RGBA')
-    # # im.paste(avatar, (1500, 690), mask=avatar)
-    # im = paste(avatar, im, (500, 670), (690, 1500))
+    #TODO 贴背景图
 
     # (left, upper, right, lower) x1,y1,x2,y2
     front = im.crop([275, 480, 2180, 1680])
@@ -177,6 +170,5 @@ if __name__ == '__main__':
         card = util.generateIdCard()
         card.print()
         card.avatar = image_util.getIcon()
-        card.name = "诺斯·克雷德布洛梅赫卡姆拉德·雷格内斯特鲁姆"
         img_name = 'id_' + str(i).zfill(5)
         generator(card, img_name)
