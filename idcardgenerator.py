@@ -6,8 +6,11 @@ import cv2
 import numpy as np
 import util.config_util as util
 from util import  config
+from util import  image_util
 import sys
 from entity.idcard import IdCard
+
+import matplotlib.pyplot as plt
 
 
 """
@@ -94,7 +97,8 @@ def generator(idCard, image_name):
     # TODO 头像 随机选
 
     # avatar = PImage.open(fname)  # 500x670
-    avatar = PImage.open("./resource/icon/2.jpeg")
+    avatar = card.avatar
+
     name_font = ImageFont.truetype(os.path.join(base_dir, 'font/hei.ttf'), 72)
     other_font = ImageFont.truetype(os.path.join(base_dir, 'font/hei.ttf'), 60)
     bdate_font = ImageFont.truetype(os.path.join(base_dir, 'font/fzhei.ttf'), 60)
@@ -121,15 +125,29 @@ def generator(idCard, image_name):
 
     #
     avatar = cv2.cvtColor(np.asarray(avatar), cv2.COLOR_RGBA2BGRA)
+    plt.imshow(avatar)
+    plt.show()
     im = cv2.cvtColor(np.asarray(im), cv2.COLOR_RGBA2BGRA)
+    plt.imshow(im)
+    plt.show()
+
     im = changeBackground(avatar, im, (500, 670), (690, 1500))
+
+    plt.imshow(im)
+    plt.show()
+
     im = PImage.fromarray(cv2.cvtColor(im, cv2.COLOR_BGRA2RGBA))
 
-    # avatar = avatar.resize((500, 670))
-    # avatar = avatar.convert('RGBA')
+    plt.imshow(im)
+    plt.show()
+
+
+    # avatar = cv2.resize(avatar,(500,670))
+    # # avatar.resize((500, 670))
+    # avatar = cv2.cvtColor(avatar,cv2.COLOR_RGB2BGRA)
+    # # avatar.convert('RGBA')
     # # im.paste(avatar, (1500, 690), mask=avatar)
     # im = paste(avatar, im, (500, 670), (690, 1500))
-    # # im = cv2.resize(im,(size[1]/2,size[0]/2))
 
     # (left, upper, right, lower) x1,y1,x2,y2
     front = im.crop([275, 480, 2180, 1680])
@@ -153,10 +171,12 @@ def generator(idCard, image_name):
 if __name__ == '__main__':
     # TODO 赋值
     util.initArea()
+    image_util.initIcon()
 
-    # TODO 待封装
-    for i in range(100,101):
+    for i in range(0,1):
         card = util.generateIdCard()
         card.print()
+        card.avatar = image_util.getIcon()
+        card.name = "诺斯·克雷德布洛梅赫卡姆拉德·雷格内斯特鲁姆"
         img_name = 'id_' + str(i).zfill(5)
         generator(card, img_name)
