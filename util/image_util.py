@@ -22,8 +22,12 @@ def initIcon():
     global  icon_all
     directory_name = "resource/icon"
     for filename in os.listdir(r"./" + directory_name):
-        img = cv2.imread(directory_name + "/" + filename)
-        icon_all.append(img)
+        if(filename.endswith('g')):
+            img = cv2.imread(directory_name + "/" + filename)
+        # print(filename)
+        # plt.imshow(img)
+        # plt.show()
+            icon_all.append(img)
     print(len(icon_all))
 
 def getIcon():
@@ -33,9 +37,18 @@ def getIcon():
     '''
     return icon_all[random.randint(0,len(icon_all))]
 
-
+import matplotlib.pyplot as plt
 if __name__ == '__main__':
+    # img = getIcon()
+    # cv2.imshow("name",img)
+    # cv2.waitKey(0)
+    # for icon icon_all
     initIcon()
-    img = getIcon()
-    cv2.imshow("name",img)
-    cv2.waitKey(0)
+    for i in range(0, 36):
+        # cv2.imshow('name',icon_all[i])
+        # cv2.waitKey(0)
+        plt.imshow(icon_all[i])
+        plt.show()
+        cv2.imwrite("resource/icon/" + str(i).zfill(5) + '.png', icon_all[i])
+    #
+    #     print(i)
