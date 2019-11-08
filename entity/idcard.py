@@ -6,12 +6,17 @@
 
 class IdCard:
     def __init__(self):
+        # 姓名
         self._name = ''
+        # 性别
         self._sex = ''
+        # 名族
         self._nation = ''
+        # 出生年
         self._year = ''
+        # 出生月
         self._month = ''
-        # 日期
+        # 出生日
         self._day = ''
         # 住址
         self._addr = ''
