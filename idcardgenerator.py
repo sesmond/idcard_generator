@@ -1,17 +1,17 @@
 # coding:utf-8
 import os
 import PIL.Image as PImage
-from PIL import ImageFont, ImageDraw
+from PIL import ImageFont, ImageDraw, Image
 import cv2
 import numpy as np
+import random
 import util.config_util as util
-from util import  config
-from util import  image_util
+from util import config
+from util import image_util
 import sys
 from entity.idcard import IdCard
 
 import matplotlib.pyplot as plt
-
 
 """
 
@@ -49,6 +49,8 @@ else:
     base_dir = os.path.join(os.path.dirname(__file__), 'resource')
 
 print(base_dir)
+
+
 def changeBackground(img, img_back, zoom_size, center):
     # 缩放
     img = cv2.resize(img, zoom_size)
@@ -88,16 +90,17 @@ def paste(avatar, bg, zoom_size, center):
     return bg
 
 
-def generator(idCard, image_name):
-    addr = idCard.addr
+def generator(id_card, image_name, bg_front, bg_back):
+    plt.subplot(1, 2, 1)  # 将画板分为2行两列，本幅图位于第一个位置
+    plt.imshow(bg_front)
+    plt.subplot(1, 2, 2)  # 将画板分为2行两列，本幅图位于第一个位置
+    plt.imshow(bg_back)
+    plt.show()
+
+    addr = id_card.addr
 
     # 加载空模板
     im = PImage.open(os.path.join(base_dir, 'empty.png'))
-    # im = cv2.imread(os.path.join(base_dir, 'empty.png'))
-    # TODO 头像 随机选
-
-    # avatar = PImage.open(fname)  # 500x670
-    avatar = card.avatar
 
     name_font = ImageFont.truetype(os.path.join(base_dir, 'font/hei.ttf'), 72)
     other_font = ImageFont.truetype(os.path.join(base_dir, 'font/hei.ttf'), 60)
@@ -105,13 +108,13 @@ def generator(idCard, image_name):
     id_font = ImageFont.truetype(os.path.join(base_dir, 'font/ocrb10bt.ttf'), 72)
 
     draw = ImageDraw.Draw(im)
-    draw.text((630, 690), idCard.name, fill=(0, 0, 0), font=name_font)
-    draw.text((630, 840), idCard.sex, fill=(0, 0, 0), font=other_font)
-    draw.text((1030, 840), idCard.nation, fill=(0, 0, 0), font=other_font)
-    draw.text((630, 980), idCard.year, fill=(0, 0, 0), font=bdate_font)
-    draw.text((950, 980), idCard.month, fill=(0, 0, 0), font=bdate_font)
-    draw.text((1150, 980), idCard.day, fill=(0, 0, 0), font=bdate_font)
-    # 地址
+    draw.text((630, 690), id_card.name, fill=(0, 0, 0), font=name_font)
+    draw.text((630, 840), id_card.sex, fill=(0, 0, 0), font=other_font)
+    draw.text((1030, 840), id_card.nation, fill=(0, 0, 0), font=other_font)
+    draw.text((630, 980), id_card.year, fill=(0, 0, 0), font=bdate_font)
+    draw.text((950, 980), id_card.month, fill=(0, 0, 0), font=bdate_font)
+    draw.text((1150, 980), id_card.day, fill=(0, 0, 0), font=bdate_font)
+    # 地址换行处理
     start = 0
     loc = 1120
     while start + 11 < len(addr):
@@ -119,56 +122,54 @@ def generator(idCard, image_name):
         start += 11
         loc += 100
     draw.text((630, loc), addr[start:], fill=(0, 0, 0), font=other_font)
-    draw.text((950, 1475), idCard.idNo, fill=(0, 0, 0), font=id_font)
-    draw.text((1050, 2750), idCard.org, fill=(0, 0, 0), font=other_font)
-    draw.text((1050, 2895), idCard.validPeriod, fill=(0, 0, 0), font=other_font)
+    draw.text((950, 1475), id_card.idNo, fill=(0, 0, 0), font=id_font)
+    draw.text((1050, 2750), id_card.org, fill=(0, 0, 0), font=other_font)
+    draw.text((1050, 2895), id_card.validPeriod, fill=(0, 0, 0), font=other_font)
 
+    # 头像处理
+    avatar = card.avatar
     avatar = cv2.cvtColor(np.asarray(avatar), cv2.COLOR_RGBA2BGRA)
-    plt.imshow(avatar)
-    plt.show()
     im = cv2.cvtColor(np.asarray(im), cv2.COLOR_RGBA2BGRA)
-    plt.imshow(im)
-    plt.show()
-
+    avatar = cv2.cvtColor(avatar, cv2.COLOR_RGBA2BGRA)
     im = changeBackground(avatar, im, (500, 670), (690, 1500))
-
-    plt.imshow(im)
-    plt.show()
 
     im = PImage.fromarray(cv2.cvtColor(im, cv2.COLOR_BGRA2RGBA))
 
-    plt.imshow(im)
-    plt.show()
-
-    #TODO 贴背景图
+    # TODO 贴背景图
 
     # (left, upper, right, lower) x1,y1,x2,y2
     front = im.crop([275, 480, 2180, 1680])
     back = im.crop([275, 1897, 2180, 3104])
 
     front_size = front.size
-    front = front.resize((front_size[0]//config.SCALE_RATE,front_size[1]//config.SCALE_RATE))
+    front = front.resize((front_size[0] // config.SCALE_RATE, front_size[1] // config.SCALE_RATE))
 
-    front.save('data/color_' + image_name + '_front.png')
+    # 旋转贴背景
+    front_img = image_util.random_rotate_paste(front, bg_front)
+
+    # img_region = front_new.crop((0, 0, front.size[0], front.size[1]))
+    front_img.save('data/color_' + image_name + '_front.png')
 
     back_size = back.size
     back = back.resize((back_size[0] // config.SCALE_RATE, back_size[1] // config.SCALE_RATE))
+    back_img = image_util.random_rotate_paste(back, bg_back)
+    back_img.save('data/color_' + image_name + '_back.png')
 
-    back.save('data/color_' + image_name + '_back.png')
-
-    # im.convert('L').save('data/bw_'+image_name+'.png')
     print('成功', u'文件已生成到目录下', image_name)
-    # showinfo(u'成功', u'文件已生成到目录下,黑白bw.png和彩色color.png')
 
 
 if __name__ == '__main__':
-    # TODO 赋值
+    # 初始化参数
     util.initArea()
-    image_util.initIcon()
-
-    for i in range(0,1):
+    # image_util.initIcon()
+    icon_list = image_util.get_all_icons()
+    bg_list = image_util.get_all_bg_images()
+    for i in range(0, 20):
         card = util.generateIdCard()
         card.print()
-        card.avatar = image_util.getIcon()
+        card.avatar = image_util.get_random_icon(icon_list)
+        bg_1, w1, h1 = image_util.create_backgroud_image(bg_list)
+        bg_2, w2, h2 = image_util.create_backgroud_image(bg_list)
         img_name = 'id_' + str(i).zfill(5)
-        generator(card, img_name)
+        generator(card, img_name, bg_1, bg_2)
+    print("生成成功")
