@@ -13,6 +13,8 @@ import os, math
 import numpy as np
 import random
 from PIL import Image, ImageDraw, ImageFont
+from util import text_util
+import matplotlib.pyplot as plt
 
 DEBUG = False
 ROOT = "resource"  # 定义运行时候的数据目录，原因是imgen.sh在根部运行
@@ -56,11 +58,13 @@ INTERFER_WORD_POINT_NUM = 20
 INTERFER_WORD_LINE_WIGHT = 1
 
 # 各种可能性的概率
-POSSIBILITY_BLANK = 0.8  # 有空格的概率
 POSSIBILITY_ROTOATE = 0.4  # 文字的旋转
 POSSIBILITY_INTEFER = 0.2  # 需要被干扰的图片，包括干扰线和点
 POSSIBILITY_WORD_INTEFER = 0.1  # 需要被干扰的图片，包括干扰线和点
-POSSIBILITY_AFFINE = 0.3  # 需要被做仿射的文字
+POSSIBILITY_AFFINE = 0.0  # 需要被做仿射的文字 TODO 仿射坐标算不出来暂时关闭
+POSSIBILITY_PERSPECTIVE = 0.5  # 需要被做透视的文字
+POSSIBILITY_NOISE = 0.5  # 加干扰项概率 TODO 这个可以大一点
+
 POSSIBILITY_PURE_NUM = 0.2  # 需要产生的纯数字
 POSSIBILITY_PURE_ENG = 0.1  # 需要产生的英语
 POSSIBILITY_DATE = 0.1  # 需要产生的纯日期
@@ -68,7 +72,7 @@ POSSIBILITY_SINGLE = 0.01  # 单字的比例
 POSSIBILITY_SPECIAL = 0.2  # 特殊字符
 
 # 仿射的倾斜的错位长度  |/_/, 这个是上边或者下边右移的长度
-AFFINE_OFFSET = 12
+AFFINE_OFFSET = 200
 
 
 def get_all_icons():
@@ -103,16 +107,52 @@ def get_random_icon(icon_list):
     return img.copy()
 
 
-def random_rotate_paste(origin_img, bg_img):
-    # plt.imshow(bg_img)
-    # plt.show()
-    #
-    img_a = origin_img.convert('RGBA')
-    img_r = img_a.rotate(random.randint(-90, 90), expand=1)
-    # 如果图片大于背景图片那就贴不全了，需要放大背景
-    w0, h0 = img_r.size
+def random_process_paste(origin_img, bg_img, boxes):
+    # TODO 仿射
+    # origin_img, boxes = random_affine(origin_img, boxes)
+
+    # 随机透射
+    origin_img, boxes = random_perspective(origin_img, boxes)
+    # 旋转并张贴到背景图上
+    bg_img, boxes = random_rotate_paste(bg_img, boxes, origin_img)
+
+    # 加噪点干扰
+    bg_img = random_add_noise(bg_img)
+    # 文本框画上去 TODO
+    bg_img = draw_box(bg_img, boxes)
+
+    return bg_img, boxes
+
+
+def random_rotate_paste(bg_img, boxes, img):
+    '''
+    随机旋转并张贴背景图
+    :param bg_img:
+    :param boxes:
+    :param img:
+    :return:
+    '''
+    w, h = img.size
+    img_new = img
+    # 随机旋转
+    if _random_accept(POSSIBILITY_PERSPECTIVE):
+        img_a = img.convert('RGBA')
+        center = (int(w / 2), int(h / 2))
+        angle = random.randint(-ROTATE_ANGLE, ROTATE_ANGLE)
+        img_new = img_a.rotate(angle, center=center, expand=1)
+        w0, h0 = img_new.size
+        new_center = (int(w0/2),int(h0/2))
+        # TODO 中心点位移
+        boxes = get_rotate_box(boxes, center, angle,new_center)
+        # temp_x = (w0 - w) // 2
+        # temp_y = (h0 - h) // 2
+        # print("旋转后中心坐标偏移：", temp_x, temp_y)
+        # boxes = text_util.move_box_coordinate(-temp_x, -temp_y, boxes)
+
+    # 张贴
+    w0, h0 = img_new.size
     w1, h1 = bg_img.size
-    print(img_r.size, bg_img.resize)
+    print(img_new.size, bg_img.resize)
     if w1 < w0 or h1 < h0:
         # resize 背景大小
         w1 = 2 * w0
@@ -120,50 +160,37 @@ def random_rotate_paste(origin_img, bg_img):
         bg_img = bg_img.resize((w1, h1))
     add_x = random.randint(0, w1 - w0)
     add_y = random.randint(0, h1 - h0)
+    boxes = text_util.move_box_coordinate(-add_x, -add_y, boxes)
+    print(img_new.size, bg_img.resize, add_x, add_y)
+    bg_img.paste(img_new, (add_x, add_y), img_new)
+    return bg_img, boxes
 
-    print(img_r.size, bg_img.resize, add_x, add_y)
-    bg_img.paste(img_r, (add_x, add_y), img_r)
-    return bg_img
 
-
-# 旋转函数
-def random_rotate(img, points):
-    ''' ______________
-        |  /        /|
-        | /        / |
-        |/________/__|
-        旋转可能有两种情况，一种是矩形，一种是平行四边形，
-        但是传入的points，就是4个顶点，
+def get_rotate_box(boxes, center, angle,new_center):
+    # theta = -theta
     '''
-    # TODO
+    旋转之后计算框
+    :param boxes:
+    :param center:
+    :param theta:
+    :return:
+    '''
+    theta = math.radians(-angle)
+    cos_theta, sin_theta = math.cos(theta), math.sin(theta)
 
-    if not _random_accept(POSSIBILITY_ROTOATE): return img, points  # 不旋转
+    print("旋转中心", center, '旋转角度：', angle)
+    new_boxes = []
+    for box in boxes:
+        new_box = []
+        for pts in box:
+            # print("旋转前：", pts)
+            pts[0] = int((pts[0] - center[0]) * cos_theta - (pts[1] - center[1]) * sin_theta + new_center[0])
+            pts[1] = int((pts[0] - center[0]) * sin_theta + (pts[1] - center[1]) * cos_theta + new_center[1])
+            new_box.append(pts)
+            # print("旋转后：", pts)
+        new_boxes.append(new_box)
 
-    w, h = img.size
-
-    center = (w // 2, h // 2)
-
-    if DEBUG: print("需要旋转")
-    degree = random.uniform(-ROTATE_ANGLE, ROTATE_ANGLE)  # 随机旋转0-8度
-    if DEBUG: print("旋转度数:%f" % degree)
-    return img.rotate(degree, center=center, expand=1), _rotate_points(points, center, degree)
-
-
-def _rotate_points(points, center, degree):
-    theta = math.radians(-degree)
-
-    original_min_x, original_min_y = np.array(points).max(axis=0)
-
-    rotated_points = [_rotate_one_point(xy, center, theta) for xy in points]
-
-    rotated_min_x, rotated_min_y = np.array(rotated_points).max(axis=0)
-
-    x_offset = abs(rotated_min_x - original_min_x)
-    y_offset = abs(rotated_min_y - original_min_y)
-
-    rotated_points = [(xy[0] + x_offset, xy[1] + y_offset) for xy in rotated_points]
-
-    return rotated_points
+    return new_boxes
 
 
 def _rotate_one_point(xy, center, theta):
@@ -177,14 +204,12 @@ def _rotate_one_point(xy, center, theta):
         (xy[0] - center[0]) * sin_theta + (xy[1] - center[1]) * cos_theta + center[1]
 
     )
-    # print("旋转后的坐标：")
-    # print(cord)
     return cord
 
 
 # 随机仿射一下，也就是歪倒一下
 # 不能随便搞，我现在是让图按照平行方向歪一下，高度不变，高度啊，大小啊，靠别的控制，否则，太乱了
-def random_affine(img):
+def random_affine(img, boxes):
     # TODO 仿射怎么搞
     HEIGHT_PIX = 10
     WIDTH_PIX = 50
@@ -196,8 +221,9 @@ def random_affine(img):
     points = [(0, 0), (original_width, 0), (original_width, original_height), (0, original_height)]
 
     if original_width < WIDTH_PIX: return img, points
-    # print("!!!!!!!!!!")
-    if not _random_accept(POSSIBILITY_AFFINE): return img, points
+    print("!!!!!!!!!!")
+    if not _random_accept(POSSIBILITY_AFFINE):
+        return img, boxes
 
     img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGBA2BGRA)
 
@@ -216,18 +242,26 @@ def random_affine(img):
     # |   \                   所以： offset_ten_pixs = (bottom_offset * HEIGHT_PIX) / height
     # |____\ <-----bottom_offset
     offset_ten_pixs = int(HEIGHT_PIX * bottom_offset / height)  # 对应10个像素的高度，应该调整的横向offset像素
-    width = int(original_width + bottom_offset)  #
+    width = int(original_width + bottom_offset)  # 宽度加上去了
 
     pts1 = np.float32([[0, 0], [WIDTH_PIX, 0], [0, HEIGHT_PIX]])  # 这就写死了，当做映射的3个点：左上角，左下角，右上角
 
     # \---------\
     # \         \
     #  \_________\
+    print("is_top_fix", is_top_fix)
     if is_top_fix:  # 上边固定，意味着下边往右
-        # print("上边左移")
+        # print("上边左移") 高度固定
         pts2 = np.float32([[0, 0], [WIDTH_PIX, 0], [offset_ten_pixs, HEIGHT_PIX]])  # 看，只调整左下角
         M = cv2.getAffineTransform(pts1, pts2)
         img = cv2.warpAffine(img, M, (width, height))
+        # cv2.invertAffineTransform()
+        # TODO 新坐标 大框还要吗？ 不要了 ，只要小框就可以 原来的坐标可能已经没有了，
+        pts = np.array([[0, 0]], dtype="float32")
+        pts = np.array([pts])
+        pts1 = cv2.warpAffine(pts, M, (width, height))
+        print("仿射后坐标：", pts1)
+
         points = [(0, 0),
                   (original_width, 0),
                   (width, original_height),
@@ -245,14 +279,70 @@ def random_affine(img):
         pts2 = np.float32([[0, 0], [WIDTH_PIX, 0], [-offset_ten_pixs, HEIGHT_PIX]])  # 看，只调整左下角
         M = cv2.getAffineTransform(pts1, pts2)
         img = cv2.warpAffine(img, M, (width, height))
+
         points = [(bottom_offset, 0),
                   (original_width + bottom_offset, 0),
                   (width, original_height),
                   (0, original_height)]
 
     img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA))
+    # plt.imshow(img)
+    # plt.show()
+    return img, boxes
 
-    return img, points
+
+def random_perspective(img, boxes):
+    '''
+    随机透射
+    :param img:
+    :param boxes:
+    :return:
+    '''
+    if not _random_accept(POSSIBILITY_PERSPECTIVE):
+        return img, boxes
+    img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGBA2BGRA)
+
+    # #透射
+    # TODO 随机生成坐标 计算输出坐标
+    # 输入、输出图像上相应的四个点
+    h, w = img.shape[:2]
+    # 四点透视
+    pts1 = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]])
+    # TODO 任意固定两个点
+    # TODO 往哪儿透射，设定一个幅度 可以各边各20% 的幅度吧
+    percent = 0.2
+    w_percent = w * percent
+    h_percent = h * percent
+
+    # TODO 四点分别几个点位置偏可以 有概率的选择，否则维持原点
+
+    x1 = np.random.randint(0, w_percent)
+    y1 = np.random.randint(0, h_percent)
+    x2 = np.random.randint(0, w_percent)
+    y2 = h - np.random.randint(1, h_percent)
+    x3 = w - np.random.randint(1, w_percent)
+    y3 = h - np.random.randint(1, h_percent)
+    x4 = w - np.random.randint(1, w_percent)
+    y4 = np.random.randint(0, h_percent)
+
+    pts2 = np.float32([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
+
+    M = cv2.getPerspectiveTransform(pts1, pts2)
+    dst = cv2.warpPerspective(img, M, (img.shape[1], img.shape[0]))
+
+    dst = Image.fromarray(cv2.cvtColor(dst, cv2.COLOR_BGRA2RGBA))
+    new_boxes = None
+    if boxes is not None and len(boxes) > 0:
+        new_boxes = []
+        for box in boxes:
+            temp = np.array(box, dtype="float32")
+            temp = np.array([temp])
+            box_new = cv2.perspectiveTransform(temp, M)
+            box_new = box_new.astype(np.int)
+            box_list = box_new.tolist()
+            new_boxes.append(box_list[0])
+
+    return dst, new_boxes
 
 
 # 生成一张背景图，大小随机
@@ -300,18 +390,6 @@ def randome_intefer_point(img, possible, num):
     del draw
 
 
-def generate_all(bground_list, image_name, label_name):
-    # 先创建一张图，宽度和高度都是随机的
-    image, w, h = create_backgroud_image(bground_list)
-
-    # TODO 背景处理完再贴图还是先贴图再统一处理
-    # 在整张图上产生干扰点和线
-    randome_intefer_line(image, POSSIBILITY_INTEFER, INTERFER_LINE_NUM, INTERFER_LINE_WIGHT)
-    randome_intefer_point(image, POSSIBILITY_INTEFER, INTERFER_POINT_NUM)
-
-    image.save(image_name)
-
-
 # 随机接受概率
 def _random_accept(accept_possibility):
     return np.random.choice([True, False], p=[accept_possibility, 1 - accept_possibility])
@@ -353,14 +431,6 @@ def _get_random_point(x_scope, y_scope):
     return x1, y1
 
 
-import matplotlib.pyplot as plt
-
-
-# plt.imshow(icon_all[i])
-# plt.show()
-# cv2.imwrite("resource/icon/" + str(i).zfill(5) + '.png', icon_all[i])
-
-
 def add_cachet_img(cachet_img, angle, img_im, adress_x, adress_y, random_num):
     cachet_img_a = cachet_img.convert('RGBA')
 
@@ -374,6 +444,91 @@ def add_cachet_img(cachet_img, angle, img_im, adress_x, adress_y, random_num):
 
     img_im.paste(img_region,
                  (random.randint(adress_x, adress_x + random_num), random.randint(adress_y, adress_y + random_num)))
+
+
+def random_add_noise(img):
+    '''
+    随机添加噪声，光照、模糊
+    :param img:
+    :return:
+    '''
+    if not _random_accept(POSSIBILITY_NOISE):
+        return img
+
+    # TODO 光线
+    img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGBA2BGRA)
+    # 噪声
+    if _random_accept(POSSIBILITY_NOISE):
+        img = gasuss_noise(img)
+    if _random_accept(POSSIBILITY_NOISE):
+        img = sp_noise(img)
+    # 高斯模糊
+    if _random_accept(POSSIBILITY_NOISE):
+        img = cv2.GaussianBlur(img, (15, 15), 0)
+
+    randome_intefer_line(img, POSSIBILITY_INTEFER, INTERFER_LINE_NUM, INTERFER_LINE_WIGHT)
+    randome_intefer_point(img, POSSIBILITY_INTEFER, INTERFER_POINT_NUM)
+
+    img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA))
+
+    # plt.imshow(img)
+    # plt.show()
+    return img
+
+
+def sp_noise(image, prob=0.1):
+    '''
+    添加椒盐噪声
+    prob:噪声比例
+    '''
+    output = np.zeros(image.shape, np.uint8)
+    thres = 1 - prob
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+            rdn = random.random()
+            if rdn < prob:
+                output[i][j] = 0
+            elif rdn > thres:
+                output[i][j] = 255
+            else:
+                output[i][j] = image[i][j]
+    return output
+
+
+def gasuss_noise(image, mean=0, var=0.001):
+    '''
+        添加高斯噪声
+        mean : 均值
+        var : 方差
+    '''
+    image = np.array(image / 255, dtype=float)
+    noise = np.random.normal(mean, var ** 0.5, image.shape)
+    out = image + noise
+    if out.min() < 0:
+        low_clip = -1.
+    else:
+        low_clip = 0.
+    out = np.clip(out, low_clip, 1.0)
+    out = np.uint8(out * 255)
+    # cv.imshow("gasuss", out)
+    return out
+
+
+def draw_box(img, boxes):
+    '''
+    再图上画文本框
+    :param img:
+    :param boxes:
+    :return:
+    '''
+    print("最终box：", boxes)
+    # if True:
+    if boxes != None and len(boxes) > 0:
+        img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGBA2BGRA)
+        for box in boxes:
+            cv2.polylines(img, [np.array(box)], True, color=(255, 255, 255), thickness=3)
+        img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA))
+    return img
 
 
 if __name__ == '__main__':
