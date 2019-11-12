@@ -8,6 +8,7 @@ import random
 import util.config_util as util
 from util import config
 from util import image_util
+from util import text_util
 import sys
 from entity.idcard import IdCard
 
@@ -91,12 +92,6 @@ def paste(avatar, bg, zoom_size, center):
 
 
 def generator(id_card, image_name, bg_front, bg_back):
-    plt.subplot(1, 2, 1)  # 将画板分为2行两列，本幅图位于第一个位置
-    plt.imshow(bg_front)
-    plt.subplot(1, 2, 2)  # 将画板分为2行两列，本幅图位于第一个位置
-    plt.imshow(bg_back)
-    plt.show()
-
     addr = id_card.addr
 
     # 加载空模板
@@ -105,26 +100,75 @@ def generator(id_card, image_name, bg_front, bg_back):
     name_font = ImageFont.truetype(os.path.join(base_dir, 'font/hei.ttf'), 72)
     other_font = ImageFont.truetype(os.path.join(base_dir, 'font/hei.ttf'), 60)
     bdate_font = ImageFont.truetype(os.path.join(base_dir, 'font/fzhei.ttf'), 60)
-    id_font = ImageFont.truetype(os.path.join(base_dir, 'font/ocrb10bt.ttf'), 72)
-
+    id_font = ImageFont.truetype(os.path.join(base_dir, 'font/ocrb10bt.ttf'), 72, index=0)  # TODO 字体大小
+    # id_font.
+    # ImageFont
+    # TODO 计算坐标 根据字体大小计算  四点坐标 八项元素
+    front_boxes = []  # 文字框 [[x1,y1,x2,y2,x3,y3],[]]
+    # TODO 看需要标注的坐标有哪些
     draw = ImageDraw.Draw(im)
     draw.text((630, 690), id_card.name, fill=(0, 0, 0), font=name_font)
+    box_name = text_util.calculate_text_box(630, 690, id_card.name, name_font)
     draw.text((630, 840), id_card.sex, fill=(0, 0, 0), font=other_font)
+    box_sex = text_util.calculate_text_box(630, 840, id_card.sex, other_font)
     draw.text((1030, 840), id_card.nation, fill=(0, 0, 0), font=other_font)
+    box_nation = text_util.calculate_text_box(1030, 840, id_card.nation, other_font)
     draw.text((630, 980), id_card.year, fill=(0, 0, 0), font=bdate_font)
     draw.text((950, 980), id_card.month, fill=(0, 0, 0), font=bdate_font)
     draw.text((1150, 980), id_card.day, fill=(0, 0, 0), font=bdate_font)
-    # 地址换行处理
+    # 生日年月日画在同一个框里
+    # box_year = text_util.calculate_text_box(1030,840,id_card.year,bdate_font)
+    birth_box = text_util.generate_box_by_two(630, 980, 1288, 1035)
+    front_boxes.append(birth_box)
+    # TODO 字符间距
+    draw.text((950, 1475), id_card.idNo, fill=(0, 0, 0), font=id_font)
+    box_id_no = text_util.calculate_text_box(950, 1475, id_card.idNo, id_font)
+    front_boxes.append(box_id_no)
+
+    name_label = text_util.generate_box_by_two(432, 710, 587, 764)
+    front_boxes.append(name_label)
+    sex_label = text_util.generate_box_by_two(432, 845, 587, 900)
+    front_boxes.append(sex_label)
+    nation_label = text_util.generate_box_by_two(847, 845, 1004, 900)
+    front_boxes.append(nation_label)
+    birth_label = text_util.generate_box_by_two(432, 982, 587, 1035)
+    front_boxes.append(birth_label)
+    addr_label = text_util.generate_box_by_two(432, 1116, 587, 1173)
+    front_boxes.append(addr_label)
+    id_code_label = text_util.generate_box_by_two(432, 1482, 791, 1537)
+    front_boxes.append(id_code_label)
+
+    front_boxes.append(box_name)
+    front_boxes.append(box_sex)
+    front_boxes.append(box_nation)
+    # front_boxes.append(box_year)
+
+    # 地址换行处理 TODO 画框
     start = 0
     loc = 1120
     while start + 11 < len(addr):
         draw.text((630, loc), addr[start:start + 11], fill=(0, 0, 0), font=other_font)
+        temp_box = text_util.calculate_text_box(630, loc, addr[start:start + 11], other_font)
+        front_boxes.append(temp_box)
         start += 11
         loc += 100
+    # TODO 画图并返回box 代码可以合并
     draw.text((630, loc), addr[start:], fill=(0, 0, 0), font=other_font)
-    draw.text((950, 1475), id_card.idNo, fill=(0, 0, 0), font=id_font)
+    addr_box = text_util.calculate_text_box(630, loc, addr[start:], other_font)
+    front_boxes.append(addr_box)
+
+    # 背面
+    back_boxes = []
     draw.text((1050, 2750), id_card.org, fill=(0, 0, 0), font=other_font)
+    box_org = text_util.calculate_text_box(1050, 2750, id_card.org, other_font)
     draw.text((1050, 2895), id_card.validPeriod, fill=(0, 0, 0), font=other_font)
+    box_period = text_util.calculate_text_box(1050, 2895, id_card.validPeriod, other_font)
+    back_boxes.append(box_org)
+    back_boxes.append(box_period)
+    org_lable = text_util.generate_box_by_two(725, 2751, 987, 2815)
+    period_lable = text_util.generate_box_by_two(725, 2897, 987, 2960)
+    back_boxes.append(org_lable)
+    back_boxes.append(period_lable)
 
     # 头像处理
     avatar = card.avatar
@@ -135,27 +179,53 @@ def generator(id_card, image_name, bg_front, bg_back):
 
     im = PImage.fromarray(cv2.cvtColor(im, cv2.COLOR_BGRA2RGBA))
 
-    # TODO 贴背景图
+    # 抠出身份证正反面图片
+    front_box = [284, 489, 2170, 1670]
+    front = im.crop(front_box)
+    back_box = [283, 1903, 2168, 3093]
+    back = im.crop(back_box)
 
-    # (left, upper, right, lower) x1,y1,x2,y2
-    front = im.crop([275, 480, 2180, 1680])
-    back = im.crop([275, 1897, 2180, 3104])
-
-    front_size = front.size
-    front = front.resize((front_size[0] // config.SCALE_RATE, front_size[1] // config.SCALE_RATE))
-
-    # 旋转贴背景
-    front_img = image_util.random_rotate_paste(front, bg_front)
-
-    # img_region = front_new.crop((0, 0, front.size[0], front.size[1]))
-    front_img.save('data/color_' + image_name + '_front.png')
-
-    back_size = back.size
-    back = back.resize((back_size[0] // config.SCALE_RATE, back_size[1] // config.SCALE_RATE))
-    back_img = image_util.random_rotate_paste(back, bg_back)
-    back_img.save('data/color_' + image_name + '_back.png')
+    # TODO 前后抠图，先抠图后贴字还是先贴字后抠图
+    # 正面处理
+    process_id_image(bg_front, front, front_box, front_boxes, image_name + "_front")
+    # 反面处理
+    process_id_image(bg_back, back, back_box, back_boxes, image_name + "_back")
 
     print('成功', u'文件已生成到目录下', image_name)
+
+
+def process_id_image(bg_img, img, img_box, img_boxes, image_name):
+    # 大图坐标切为小图坐标
+    img_boxes = text_util.move_box_coordinate(img_box[0], img_box[1], img_boxes)
+
+    img_size = img.size
+    img = img.resize((img_size[0] // config.SCALE_RATE, img_size[1] // config.SCALE_RATE))
+    #TODO 缩小之后坐标转换
+    img_boxes = text_util.calculate_scale_box(img_boxes,config.SCALE_RATE)
+    # TODO box 转换 转换为身份证小图的坐标
+    # 旋转贴背景
+
+    new_img, img_boxes = image_util.random_process_paste(img, bg_img, img_boxes)
+    # img_region = front_new.crop((0, 0, front.size[0], front.size[1]))
+    # save_image_and_label(front_boxes, image_name)
+
+    # 生成的图片存放目录
+    data_images_dir = "data/images"
+    # 生成的图片对应的标签的存放目录，这个是小框的标签
+    data_labels_dir = "data/labels"
+    if not os.path.exists(data_images_dir): os.makedirs(data_images_dir)
+    if not os.path.exists(data_labels_dir): os.makedirs(data_labels_dir)
+    image_path=os.path.join(data_images_dir,image_name+ ".png")
+    new_img.save(image_path)
+
+    label_path =os.path.join( data_labels_dir , image_name + ".txt")
+    # 标签名字
+    with open(label_path, "w") as label_file:
+        for label in img_boxes:
+            # TODO 坐标怎么拼接
+            xy_info = ",".join([str(pos) for pos in label])
+            label_file.write(xy_info)
+            label_file.write("\n")
 
 
 if __name__ == '__main__':
@@ -164,7 +234,7 @@ if __name__ == '__main__':
     # image_util.initIcon()
     icon_list = image_util.get_all_icons()
     bg_list = image_util.get_all_bg_images()
-    for i in range(0, 20):
+    for i in range(0, 1):
         card = util.generateIdCard()
         card.print()
         card.avatar = image_util.get_random_icon(icon_list)
