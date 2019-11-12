@@ -144,10 +144,6 @@ def random_rotate_paste(bg_img, boxes, img):
         new_center = (int(w0/2),int(h0/2))
         # TODO 中心点位移
         boxes = get_rotate_box(boxes, center, angle,new_center)
-        # temp_x = (w0 - w) // 2
-        # temp_y = (h0 - h) // 2
-        # print("旋转后中心坐标偏移：", temp_x, temp_y)
-        # boxes = text_util.move_box_coordinate(-temp_x, -temp_y, boxes)
 
     # 张贴
     w0, h0 = img_new.size
