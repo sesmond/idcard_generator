@@ -234,7 +234,8 @@ if __name__ == '__main__':
     # image_util.initIcon()
     icon_list = image_util.get_all_icons()
     bg_list = image_util.get_all_bg_images()
-    for i in range(0, 1):
+    for i in range(0, 10000):
+        print("生成第：",i,"张身份证")
         card = util.generateIdCard()
         card.print()
         card.avatar = image_util.get_random_icon(icon_list)

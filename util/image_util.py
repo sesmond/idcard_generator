@@ -119,7 +119,7 @@ def random_process_paste(origin_img, bg_img, boxes):
     # 加噪点干扰
     bg_img = random_add_noise(bg_img)
     # 文本框画上去 TODO
-    bg_img = draw_box(bg_img, boxes)
+    # bg_img = draw_box(bg_img, boxes)
 
     return bg_img, boxes
 
