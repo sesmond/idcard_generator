@@ -52,12 +52,12 @@ INTERFER_WORD_POINT_NUM = 20
 INTERFER_WORD_LINE_WIGHT = 1
 
 # 各种可能性的概率
-POSSIBILITY_ROTOATE = 0.3  # 文字的旋转
+POSSIBILITY_ROTOATE = 1.0  # 文字的旋转
 POSSIBILITY_INTEFER = 0.2  # 需要被干扰的图片，包括干扰线和点
 POSSIBILITY_WORD_INTEFER = 0.1  # 需要被干扰的图片，包括干扰线和点
 POSSIBILITY_AFFINE = 0.0  # 需要被做仿射的文字 TODO 仿射坐标算不出来暂时关闭
-POSSIBILITY_PERSPECTIVE = 0.5  # 需要被做透视的文字
-POSSIBILITY_NOISE = 0.2  # 加干扰项概率 TODO 这个可以大一点
+POSSIBILITY_PERSPECTIVE = 0.0  # 需要被做透视的文字概率
+POSSIBILITY_NOISE = 0.0  # 加干扰项概率 TODO 这个可以大一点
 
 POSSIBILITY_PURE_NUM = 0.2  # 需要产生的纯数字
 POSSIBILITY_PURE_ENG = 0.1  # 需要产生的英语
@@ -115,9 +115,9 @@ def random_process_paste(origin_img, bg_img, boxes):
     bg_img, boxes = random_rotate_paste(bg_img, boxes, origin_img)
 
     # 加噪点干扰
-    bg_img = random_add_noise(bg_img)
+    # bg_img = random_add_noise(bg_img)
     # 文本框画上去 TODO
-    # bg_img = draw_box(bg_img, boxes)
+    bg_img = draw_box(bg_img, boxes)
 
     return bg_img, boxes
 
@@ -133,7 +133,7 @@ def random_rotate_paste(bg_img, boxes, img):
     w, h = img.size
     img_new = img
     # 随机旋转
-    if _random_accept(POSSIBILITY_PERSPECTIVE):
+    if _random_accept(1.0): #POSSIBILITY_ROTOATE
         img_a = img.convert('RGBA')
         center = (int(w / 2), int(h / 2))
         angle = random.randint(-ROTATE_ANGLE, ROTATE_ANGLE)
@@ -141,8 +141,15 @@ def random_rotate_paste(bg_img, boxes, img):
         w0, h0 = img_new.size
         new_center = (int(w0/2),int(h0/2))
         # TODO 中心点位移
-        boxes = get_rotate_box(boxes, center, angle,new_center)
-
+        boxes = text_util.get_rotate_box(boxes, center, angle,new_center)
+        #TODO
+        # temp_x = new_center[0]-center[0]
+        # temp_y = new_center[1]-center[1]
+        # boxes = text_util.move_box_coordinate(temp_x, temp_y, boxes)
+        # temp_x = (w0 - w) // 2
+        # temp_y = (h0 - h) // 2
+        # print("旋转后中心坐标偏移：", temp_x, temp_y)
+        # boxes = text_util.move_box_coordinate(-temp_x, -temp_y, boxes)
     # 张贴
     w0, h0 = img_new.size
     w1, h1 = bg_img.size
@@ -159,42 +166,16 @@ def random_rotate_paste(bg_img, boxes, img):
     return bg_img, boxes
 
 
-def get_rotate_box(boxes, center, angle,new_center):
-    # theta = -theta
-    '''
-    旋转之后计算框
-    :param boxes:
-    :param center:
-    :param theta:
-    :return:
-    '''
-    theta = math.radians(-angle)
-    cos_theta, sin_theta = math.cos(theta), math.sin(theta)
 
-    print("旋转中心", center, '旋转角度：', angle)
-    new_boxes = []
-    for box in boxes:
-        new_box = []
-        for pts in box:
-            # print("旋转前：", pts)
-            pts[0] = int((pts[0] - center[0]) * cos_theta - (pts[1] - center[1]) * sin_theta + new_center[0])
-            pts[1] = int((pts[0] - center[0]) * sin_theta + (pts[1] - center[1]) * cos_theta + new_center[1])
-            new_box.append(pts)
-            # print("旋转后：", pts)
-        new_boxes.append(new_box)
-
-    return new_boxes
-
-
-def _rotate_one_point(xy, center, theta):
+def _rotate_one_point(pts, center, theta):
     # https://en.wikipedia.org/wiki/Rotation_matrix#In_two_dimensions
     cos_theta, sin_theta = math.cos(theta), math.sin(theta)
 
     cord = (
         # (xy[0] - center[0]) * cos_theta - (xy[1]-center[1]) * sin_theta + xy[0],
         # (xy[0] - center[0]) * sin_theta + (xy[1]-center[1]) * cos_theta + xy[1]
-        (xy[0] - center[0]) * cos_theta - (xy[1] - center[1]) * sin_theta + center[0],
-        (xy[0] - center[0]) * sin_theta + (xy[1] - center[1]) * cos_theta + center[1]
+        int((pts[0] - center[0]) * cos_theta - (pts[1] - center[1]) * sin_theta + center[0]),
+        int((pts[0] - center[0]) * sin_theta + (pts[1] - center[1]) * cos_theta + center[1])
 
     )
     return cord
@@ -505,8 +486,46 @@ def draw_box(img, boxes):
     if boxes != None and len(boxes) > 0:
         img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGBA2BGRA)
         for box in boxes:
-            cv2.polylines(img, [np.array(box)], True, color=(255, 255, 255), thickness=3)
+            cv2.polylines(img, [np.array(box)], True, color=(0, 0, 255), thickness=2)
         img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA))
+    return img
+
+
+def remove_black_edge(img):
+    '''
+    去黑边，并仍按原大小返回
+    :param img:
+    :return:
+    '''
+    #  边缘几个像素
+    EDGE_SIZE = 50
+    COLOR_SUM = 30 #RGB 颜色阈值，和小于它就可以替换
+    # plt.imshow(img)
+    # plt.show()
+    w,h = img.size
+    # 左右50像素
+    for j in range(0, h):
+        for i in range(0, EDGE_SIZE):
+            data = (img.getpixel((i, j)))  # 打印该图片的所有点
+            if np.sum(data[:3]) < COLOR_SUM :
+                img.putpixel((i, j), (0, 0, 0, 0))
+
+        for i in range(w-EDGE_SIZE, w):
+            data = (img.getpixel((i, j)))  # 打印该图片的所有点
+            if np.sum(data[:3]) < COLOR_SUM :
+                img.putpixel((i, j), (0, 0, 0, 0))
+    #上下5像素
+    for i in range(EDGE_SIZE, w-EDGE_SIZE):
+        for j in range(0, 5):
+            data = (img.getpixel((i, j)))  # 打印该图片的所有点
+            if np.sum(data[:3]) < COLOR_SUM :
+                img.putpixel((i, j), (0, 0, 0, 0))
+        for j in range(h-EDGE_SIZE, h):
+            data = (img.getpixel((i, j)))  # 打印该图片的所有点
+            if np.sum(data[:3]) < COLOR_SUM :
+                img.putpixel((i, j), (0, 0, 0, 0))
+    # plt.imshow(img)
+    # plt.show()
     return img
 
 

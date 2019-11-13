@@ -99,3 +99,38 @@ def move_box_coordinate(add_x, add_y, boxes):
         return new_boxes
     else:
         return None
+
+
+
+def get_rotate_box(boxes, center, angle,new_center):
+    # theta = -theta
+    '''
+    旋转之后计算框
+    :param boxes:
+    :param center:
+    :param theta:
+    :return:
+    '''
+    theta = math.radians(-angle)
+    cos_theta, sin_theta = math.cos(theta), math.sin(theta)
+
+    print("旋转中心", center, '旋转角度：', angle,"新中心：",new_center)
+    new_boxes = []
+    for box in boxes:
+        new_box = []
+        # print("旋转前：", box)
+        for pts in box:
+            # print("点旋转前：",pts)
+            #TODO
+            # pts_new = _rotate_one_point(pts,center,theta)
+            # 在新中心位置的基础上发生偏移
+            pts_new = (
+                int((pts[0] - center[0]) * cos_theta - (pts[1] - center[1]) * sin_theta + new_center[0]),
+                int((pts[0] - center[0]) * sin_theta + (pts[1] - center[1]) * cos_theta + new_center[1])
+            )
+            # print('点旋转后：',pts_new)
+            new_box.append(pts_new)
+        # print("旋转后：", new_box)
+
+        new_boxes.append(new_box)
+    return new_boxes

@@ -182,10 +182,12 @@ def generator(path,id_card, image_name, bg_front, bg_back):
 
     # 抠出身份证正反面图片
     front_box = [284, 489, 2170, 1670]
+    #TODO 去黑边
     front = im.crop(front_box)
+    front = image_util.remove_black_edge(front)
     back_box = [283, 1903, 2168, 3093]
     back = im.crop(back_box)
-
+    back = image_util.remove_black_edge(back)
     # TODO 前后抠图，先抠图后贴字还是先贴字后抠图
     # 正面处理
     process_id_image(path,bg_front, front, front_box, front_boxes, image_name + "_front")
@@ -193,6 +195,7 @@ def generator(path,id_card, image_name, bg_front, bg_back):
     process_id_image(path,bg_back, back, back_box, back_boxes, image_name + "_back")
 
     print('成功', u'文件已生成到目录下', image_name)
+
 
 
 def process_id_image(path,bg_img, img, img_box, img_boxes, image_name):
@@ -236,16 +239,16 @@ def process_id_image(path,bg_img, img, img_box, img_boxes, image_name):
 def generate_batch(path,work_no,task_num,icon_list,bg_list):
     for i in range(0, task_num):
         print("生成第", work_no ,"批，第",i, "张身份证")
-        try:
-            card = util.generateIdCard()
-            card.print()
-            card.avatar = image_util.get_random_icon(icon_list)
-            bg_1, w1, h1 = image_util.create_backgroud_image(bg_list)
-            bg_2, w2, h2 = image_util.create_backgroud_image(bg_list)
-            img_name = str(work_no) + '_id_' + str(i).zfill(5)
-            generator(path,card, img_name, bg_1, bg_2)
-        except Exception as e:
-            print("样本生成发生错误，忽略此错误，继续....",str(e))
+        # try:
+        card = util.generateIdCard()
+        card.print()
+        card.avatar = image_util.get_random_icon(icon_list)
+        bg_1, w1, h1 = image_util.create_backgroud_image(bg_list)
+        bg_2, w2, h2 = image_util.create_backgroud_image(bg_list)
+        img_name = str(work_no) + '_id_' + str(i).zfill(5)
+        generator(path,card, img_name, bg_1, bg_2)
+        # except Exception as e:
+        #     print("样本生成发生错误，忽略此错误，继续....",str(e))
 if __name__ == '__main__':
     import argparse
 
@@ -269,7 +272,7 @@ if __name__ == '__main__':
     bg_list = image_util.get_all_bg_images()
     print("save_path:",save_path)
     for i in range(worker):
-        p = Process(target=generate_batch, args=(save_path,i,task_num, icon_list,bg_list))
-        p.start()
-
+        # p = Process(target=generate_batch, args=(save_path,i,task_num, icon_list,bg_list))
+        # p.start()
+        generate_batch(save_path,i,task_num, icon_list,bg_list)
     print("生成成功")
