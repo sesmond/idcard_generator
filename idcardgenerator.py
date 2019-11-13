@@ -11,6 +11,7 @@ from util import image_util
 from util import text_util
 import sys
 from entity.idcard import IdCard
+from multiprocessing import Process,Queue
 
 import matplotlib.pyplot as plt
 
@@ -91,7 +92,7 @@ def paste(avatar, bg, zoom_size, center):
     return bg
 
 
-def generator(id_card, image_name, bg_front, bg_back):
+def generator(path,id_card, image_name, bg_front, bg_back):
     addr = id_card.addr
 
     # 加载空模板
@@ -171,7 +172,7 @@ def generator(id_card, image_name, bg_front, bg_back):
     back_boxes.append(period_lable)
 
     # 头像处理
-    avatar = card.avatar
+    avatar = id_card.avatar
     avatar = cv2.cvtColor(np.asarray(avatar), cv2.COLOR_RGBA2BGRA)
     im = cv2.cvtColor(np.asarray(im), cv2.COLOR_RGBA2BGRA)
     avatar = cv2.cvtColor(avatar, cv2.COLOR_RGBA2BGRA)
@@ -187,14 +188,14 @@ def generator(id_card, image_name, bg_front, bg_back):
 
     # TODO 前后抠图，先抠图后贴字还是先贴字后抠图
     # 正面处理
-    process_id_image(bg_front, front, front_box, front_boxes, image_name + "_front")
+    process_id_image(path,bg_front, front, front_box, front_boxes, image_name + "_front")
     # 反面处理
-    process_id_image(bg_back, back, back_box, back_boxes, image_name + "_back")
+    process_id_image(path,bg_back, back, back_box, back_boxes, image_name + "_back")
 
     print('成功', u'文件已生成到目录下', image_name)
 
 
-def process_id_image(bg_img, img, img_box, img_boxes, image_name):
+def process_id_image(path,bg_img, img, img_box, img_boxes, image_name):
     # 大图坐标切为小图坐标
     img_boxes = text_util.move_box_coordinate(img_box[0], img_box[1], img_boxes)
 
@@ -208,17 +209,21 @@ def process_id_image(bg_img, img, img_box, img_boxes, image_name):
     new_img, img_boxes = image_util.random_process_paste(img, bg_img, img_boxes)
     # img_region = front_new.crop((0, 0, front.size[0], front.size[1]))
     # save_image_and_label(front_boxes, image_name)
-
+    if not os.path.exists(path): os.makedirs(path)
     # 生成的图片存放目录
-    data_images_dir = "data/images"
+    data_images_dir = os.path.join(path,"images")
     # 生成的图片对应的标签的存放目录，这个是小框的标签
-    data_labels_dir = "data/labels"
+    data_labels_dir = os.path.join(path,"labels")
     if not os.path.exists(data_images_dir): os.makedirs(data_images_dir)
     if not os.path.exists(data_labels_dir): os.makedirs(data_labels_dir)
+    #TODO 是否要生成大框坐标 方便UNET使用
     image_path=os.path.join(data_images_dir,image_name+ ".png")
-    new_img.save(image_path)
 
+    new_img.save(image_path)
+    print("生成样本：", image_path)
     label_path =os.path.join( data_labels_dir , image_name + ".txt")
+    print("生成标签：", label_path)
+
     # 标签名字
     with open(label_path, "w") as label_file:
         for label in img_boxes:
@@ -228,19 +233,43 @@ def process_id_image(bg_img, img, img_box, img_boxes, image_name):
             label_file.write("\n")
 
 
+def generate_batch(path,work_no,task_num,icon_list,bg_list):
+    for i in range(0, task_num):
+        print("生成第", work_no ,"批，第",i, "张身份证")
+        try:
+            card = util.generateIdCard()
+            card.print()
+            card.avatar = image_util.get_random_icon(icon_list)
+            bg_1, w1, h1 = image_util.create_backgroud_image(bg_list)
+            bg_2, w2, h2 = image_util.create_backgroud_image(bg_list)
+            img_name = str(work_no) + '_id_' + str(i).zfill(5)
+            generator(path,card, img_name, bg_1, bg_2)
+        except Exception as e:
+            print("样本生成发生错误，忽略此错误，继续....",str(e))
 if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--type")
+    parser.add_argument("--dir")
+    parser.add_argument("--num")
+    parser.add_argument("--worker")
+    args = parser.parse_args()
+    print(args)
+    num = int( args.num)
+
+    worker = int(args.worker)
+    task_num = num // worker  # 每个进程应该处理的个数
+
+    save_path = args.dir + "/" + args.type
     # 初始化参数
     util.initArea()
-    # image_util.initIcon()
+
     icon_list = image_util.get_all_icons()
     bg_list = image_util.get_all_bg_images()
-    for i in range(0, 10000):
-        print("生成第：",i,"张身份证")
-        card = util.generateIdCard()
-        card.print()
-        card.avatar = image_util.get_random_icon(icon_list)
-        bg_1, w1, h1 = image_util.create_backgroud_image(bg_list)
-        bg_2, w2, h2 = image_util.create_backgroud_image(bg_list)
-        img_name = 'id_' + str(i).zfill(5)
-        generator(card, img_name, bg_1, bg_2)
+    print("save_path:",save_path)
+    for i in range(worker):
+        p = Process(target=generate_batch, args=(save_path,i,task_num, icon_list,bg_list))
+        p.start()
+
     print("生成成功")

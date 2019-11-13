@@ -12,9 +12,11 @@ import cv2
 import os, math
 import numpy as np
 import random
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont,ImageFile
 from util import text_util
 import matplotlib.pyplot as plt
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 DEBUG = False
 ROOT = "resource"  # 定义运行时候的数据目录，原因是imgen.sh在根部运行
@@ -35,20 +37,12 @@ GAUSS_RADIUS_MIN = 0.5  # 高斯模糊的radius最小值
 GAUSS_RADIUS_MAX = 0.8  # 高斯模糊的radius最大值
 
 # 之前的设置，太大，我决定改改
-# MAX_BACKGROUND_WIDTH = 1600
-# MIN_BACKGROUND_WIDTH = 800
-# MAX_BACKGROUND_HEIGHT = 2500
-# MIN_BACKGROUND_HEIGHT = 1000
-MAX_BACKGROUND_WIDTH = 2000
-MIN_BACKGROUND_WIDTH = 1000
-MAX_BACKGROUND_HEIGHT = 2000
-MIN_BACKGROUND_HEIGHT = 1000
+MAX_BACKGROUND_WIDTH = 1600
+MIN_BACKGROUND_WIDTH = 800
+MAX_BACKGROUND_HEIGHT = 1600
+MIN_BACKGROUND_HEIGHT = 500
 
-MAX_SPECIAL_NUM = 5  # 特殊字符的个数
 
-MAX_BLANK_NUM = 5  # 字之间随机的空格数量
-MIN_BLANK_WIDTH = 50  # 最小的句子间的随机距离
-MAX_BLANK_WIDTH = 100  # 最长的句子间距离
 
 INTERFER_LINE_NUM = 10
 INTERFER_POINT_NUM = 2000
@@ -58,12 +52,12 @@ INTERFER_WORD_POINT_NUM = 20
 INTERFER_WORD_LINE_WIGHT = 1
 
 # 各种可能性的概率
-POSSIBILITY_ROTOATE = 0.4  # 文字的旋转
+POSSIBILITY_ROTOATE = 0.3  # 文字的旋转
 POSSIBILITY_INTEFER = 0.2  # 需要被干扰的图片，包括干扰线和点
 POSSIBILITY_WORD_INTEFER = 0.1  # 需要被干扰的图片，包括干扰线和点
 POSSIBILITY_AFFINE = 0.0  # 需要被做仿射的文字 TODO 仿射坐标算不出来暂时关闭
 POSSIBILITY_PERSPECTIVE = 0.5  # 需要被做透视的文字
-POSSIBILITY_NOISE = 0.5  # 加干扰项概率 TODO 这个可以大一点
+POSSIBILITY_NOISE = 0.2  # 加干扰项概率 TODO 这个可以大一点
 
 POSSIBILITY_PURE_NUM = 0.2  # 需要产生的纯数字
 POSSIBILITY_PURE_ENG = 0.1  # 需要产生的英语
@@ -90,7 +84,11 @@ def get_all_bg_images():
 
     bg_list = []
     for img_name in os.listdir(bground_path):
+        # image = cv2.imread(bground_path + img_name)
+        if not img_name.endswith('g'):
+            continue
         image = Image.open(bground_path + img_name)
+        #TODO 太大裁剪？
         if image.mode == "L":
             # logger.error("图像[%s]是灰度的，转RGB",img_name)
             image = image.convert("RGB")
@@ -148,7 +146,6 @@ def random_rotate_paste(bg_img, boxes, img):
     # 张贴
     w0, h0 = img_new.size
     w1, h1 = bg_img.size
-    print(img_new.size, bg_img.resize)
     if w1 < w0 or h1 < h0:
         # resize 背景大小
         w1 = 2 * w0
@@ -157,7 +154,7 @@ def random_rotate_paste(bg_img, boxes, img):
     add_x = random.randint(0, w1 - w0)
     add_y = random.randint(0, h1 - h0)
     boxes = text_util.move_box_coordinate(-add_x, -add_y, boxes)
-    print(img_new.size, bg_img.resize, add_x, add_y)
+    # print(img_new.size, bg_img.size, add_x, add_y)
     bg_img.paste(img_new, (add_x, add_y), img_new)
     return bg_img, boxes
 
@@ -355,6 +352,7 @@ def random_image_size(image):
     # 产生随机的大小
     height = random.randint(MIN_BACKGROUND_HEIGHT, MAX_BACKGROUND_HEIGHT)
     width = random.randint(MIN_BACKGROUND_WIDTH, MAX_BACKGROUND_WIDTH)
+    # print("随机生成宽高：",width,height)
     # TODO 背景过大做一下随机切割
     # 高度和宽度随机后，还要随机产生起始点x,y，但是要考虑切出来不能超过之前纸张的大小，所以做以下处理：
     size = image.size
@@ -362,11 +360,13 @@ def random_image_size(image):
     y_scope = size[1] - height
 
     if x_scope < 0 or y_scope < 0:
-        image.resize((width, height))
+        # print("")
+        image = image.resize((width, height))
     else:
         x = random.randint(0, x_scope)
         y = random.randint(0, y_scope)
         image = image.crop((x, y, x + width, y + height))
+        # print("裁剪图像：", x, y, width, height)
     # logger.debug("剪裁图像:x=%d,y=%d,w=%d,h=%d",x,y,width,height)
     # image.resize((width, height))
     return image, width, height
@@ -427,21 +427,6 @@ def _get_random_point(x_scope, y_scope):
     return x1, y1
 
 
-def add_cachet_img(cachet_img, angle, img_im, adress_x, adress_y, random_num):
-    cachet_img_a = cachet_img.convert('RGBA')
-
-    cachet_img_r = cachet_img_a.rotate(random.randrange((-1 * angle), angle))
-
-    cachet_img_f = Image.new('RGBA', cachet_img_r.size, (255,) * 4)
-
-    cachet_img_new = Image.composite(cachet_img_r, cachet_img_f, cachet_img_r)
-
-    img_region = cachet_img_new.crop((0, 0, cachet_img.size[0], cachet_img.size[1]))
-
-    img_im.paste(img_region,
-                 (random.randint(adress_x, adress_x + random_num), random.randint(adress_y, adress_y + random_num)))
-
-
 def random_add_noise(img):
     '''
     随机添加噪声，光照、模糊
@@ -462,11 +447,9 @@ def random_add_noise(img):
     if _random_accept(POSSIBILITY_NOISE):
         img = cv2.GaussianBlur(img, (15, 15), 0)
 
+    img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA))
     randome_intefer_line(img, POSSIBILITY_INTEFER, INTERFER_LINE_NUM, INTERFER_LINE_WIGHT)
     randome_intefer_point(img, POSSIBILITY_INTEFER, INTERFER_POINT_NUM)
-
-    img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA))
-
     # plt.imshow(img)
     # plt.show()
     return img
