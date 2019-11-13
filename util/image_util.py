@@ -36,7 +36,7 @@ ROTATE_ANGLE = 90  # 随机旋转角度
 GAUSS_RADIUS_MIN = 0.5  # 高斯模糊的radius最小值
 GAUSS_RADIUS_MAX = 0.8  # 高斯模糊的radius最大值
 
-# 之前的设置，太大，我决定改改
+# 北京图片
 MAX_BACKGROUND_WIDTH = 1600
 MIN_BACKGROUND_WIDTH = 800
 MAX_BACKGROUND_HEIGHT = 1600
@@ -52,18 +52,13 @@ INTERFER_WORD_POINT_NUM = 20
 INTERFER_WORD_LINE_WIGHT = 1
 
 # 各种可能性的概率
-POSSIBILITY_ROTOATE = 1.0  # 文字的旋转
+POSSIBILITY_ROTOATE = 0.3  # 文字的旋转
 POSSIBILITY_INTEFER = 0.2  # 需要被干扰的图片，包括干扰线和点
 POSSIBILITY_WORD_INTEFER = 0.1  # 需要被干扰的图片，包括干扰线和点
 POSSIBILITY_AFFINE = 0.0  # 需要被做仿射的文字 TODO 仿射坐标算不出来暂时关闭
-POSSIBILITY_PERSPECTIVE = 0.0  # 需要被做透视的文字概率
-POSSIBILITY_NOISE = 0.0  # 加干扰项概率 TODO 这个可以大一点
+POSSIBILITY_PERSPECTIVE = 0.4  # 需要被做透视的文字概率
+POSSIBILITY_NOISE = 0.3  # 加干扰项概率 TODO 这个可以大一点
 
-POSSIBILITY_PURE_NUM = 0.2  # 需要产生的纯数字
-POSSIBILITY_PURE_ENG = 0.1  # 需要产生的英语
-POSSIBILITY_DATE = 0.1  # 需要产生的纯日期
-POSSIBILITY_SINGLE = 0.01  # 单字的比例
-POSSIBILITY_SPECIAL = 0.2  # 特殊字符
 
 # 仿射的倾斜的错位长度  |/_/, 这个是上边或者下边右移的长度
 AFFINE_OFFSET = 200
@@ -115,9 +110,9 @@ def random_process_paste(origin_img, bg_img, boxes):
     bg_img, boxes = random_rotate_paste(bg_img, boxes, origin_img)
 
     # 加噪点干扰
-    # bg_img = random_add_noise(bg_img)
+    bg_img = random_add_noise(bg_img)
     # 文本框画上去 TODO
-    bg_img = draw_box(bg_img, boxes)
+    # bg_img = draw_box(bg_img, boxes)
 
     return bg_img, boxes
 

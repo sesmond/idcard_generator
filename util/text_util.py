@@ -7,6 +7,7 @@
 @Time    : 2019/11/11 11:28 上午
 @Version : 1.0 
 '''
+import  math
 
 
 def caculate_text_shape(text, font):

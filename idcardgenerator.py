@@ -272,7 +272,7 @@ if __name__ == '__main__':
     bg_list = image_util.get_all_bg_images()
     print("save_path:",save_path)
     for i in range(worker):
-        # p = Process(target=generate_batch, args=(save_path,i,task_num, icon_list,bg_list))
-        # p.start()
-        generate_batch(save_path,i,task_num, icon_list,bg_list)
+        p = Process(target=generate_batch, args=(save_path,i,task_num, icon_list,bg_list))
+        p.start()
+        # generate_batch(save_path,i,task_num, icon_list,bg_list)
     print("生成成功")
